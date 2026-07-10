@@ -1,4 +1,7 @@
+import sys
 import os
+
+sys.path.append(os.path.dirname(__file__))
 
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
@@ -45,17 +48,10 @@ if user_input:
         st.markdown(user_input)
 
     try:
-        # ── CALL 1 ───────────────────────────────────────────────
-        # Translate user input to English for:
-        # (a) accurate emergency detection in any language including
-        #     Urdu script
-        # (b) accurate Pinecone retrieval from English corpus
         english_input = translate_to_english(user_input)
     except Exception:
         english_input = user_input
 
-    # Emergency check on both original and translated input
-    # catches emergencies in English, Roman Urdu and Urdu script
     if check_emergency(user_input) or check_emergency(english_input):
         emergency_response = get_emergency_response()
         st.session_state.messages.append({
@@ -69,8 +65,6 @@ if user_input:
         with st.chat_message("assistant"):
             with st.spinner("Searching medical guidelines..."):
                 try:
-                    # Build conversation history from session state
-                    # Only last 6 messages to keep prompt size manageable
                     chat_history = []
                     for msg in st.session_state.messages[-6:]:
                         if msg["role"] == "user":
@@ -82,32 +76,22 @@ if user_input:
                                 AIMessage(content=msg["content"])
                             )
 
-                    # Retrieve using English translation for accuracy
-                    # Pinecone corpus is in English so English query
-                    # gives the best similarity matches
                     retrieved_docs = st.session_state.retriever.invoke(
                         english_input
                     )
 
-                    # ── CALL 2 ───────────────────────────────────
-                    # Generate answer in user's original language
-                    # Also returns English version inside same response
-                    # to avoid a separate translation call for grading
                     answer, english_answer = get_answer(
                         user_input,
                         retrieved_docs,
                         chat_history
                     )
 
-                    # Format context for grading
                     context = "\n\n".join([
                         doc.page_content for doc in retrieved_docs
                     ])
 
-                    # ── CALL 3 ───────────────────────────────────
-                    # Grade English answer vs English context
-                    # Both are in English so comparison is accurate
-                    grade = grade_answer(english_answer, context)
+                    english_answer_graded = english_answer
+                    grade = grade_answer(english_answer_graded, context)
 
                     st.markdown(answer)
 
