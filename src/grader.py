@@ -1,75 +1,74 @@
-import os
+"""Faithfulness grading for generated answers."""
 
-from dotenv import load_dotenv
+import logging
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from src.config import (
+    GEMINI_API_KEY,
+    GRADE_PARTIAL,
+    GRADING_TEMPERATURE,
+    LLM_MODEL_NAME,
+    VALID_GRADES,
+)
+from src.utils import extract_text
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL_NAME = "gemini-3.1-flash-lite"
+_grading_llm = ChatGoogleGenerativeAI(
+    model=LLM_MODEL_NAME,
+    google_api_key=GEMINI_API_KEY,
+    temperature=GRADING_TEMPERATURE,
+)
 
+_grading_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an evaluator checking whether an AI
+    generated answer is faithful to the provided context.
 
-def extract_text(content) -> str:
-    """
-    Handles both string and list response formats from Gemini.
-    """
-    if isinstance(content, list):
-        return "".join([
-            block.get("text", "") if isinstance(block, dict)
-            else str(block)
-            for block in content
-        ])
-    return str(content)
+    Evaluate the answer against the context and respond with
+    exactly one word only:
+
+    - "faithful" if the answer is fully supported by the context
+    - "partial" if the answer is partially supported but contains
+      some information not in the context
+    - "hallucinated" if the answer contains significant information
+      not found in the context at all
+
+    Respond with one word only. No explanation. No punctuation.
+
+    CONTEXT:
+    {context}
+
+    ANSWER TO EVALUATE:
+    {answer}
+    """,
+        ),
+        ("human", "Evaluate the answer above."),
+    ]
+)
 
 
 def grade_answer(answer: str, context: str) -> str:
     """
-    Call 3 — Grades whether the answer is faithful to the context.
-    Both answer and context are in English for accurate comparison.
-    Returns: faithful / partial / hallucinated
+    Grade whether an answer is faithful to its source context.
+
+    Args:
+        answer: English version of the generated answer.
+        context: English retrieved context used to generate it.
+
+    Returns:
+        One of "faithful", "partial", "hallucinated". Falls back to
+        "partial" on unexpected model output or a failed API call.
     """
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an evaluator checking whether an AI
-        generated answer is faithful to the provided context.
-
-        Evaluate the answer against the context and respond with
-        exactly one word only:
-
-        - "faithful" if the answer is fully supported by the context
-        - "partial" if the answer is partially supported but contains
-          some information not in the context
-        - "hallucinated" if the answer contains significant information
-          not found in the context at all
-
-        Respond with one word only. No explanation. No punctuation.
-
-        CONTEXT:
-        {context}
-
-        ANSWER TO EVALUATE:
-        {answer}
-        """),
-        ("human", "Evaluate the answer above.")
-    ])
-
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=GEMINI_API_KEY,
-        temperature=0
-    )
-
-    chain = prompt | llm
-
-    response = chain.invoke({
-        "context": context,
-        "answer": answer
-    })
-
-    grade = extract_text(response.content).strip().lower()
-
-    if grade not in ["faithful", "partial", "hallucinated"]:
-        return "partial"
-
-    return grade
+    try:
+        chain = _grading_prompt | _grading_llm
+        response = chain.invoke({"context": context, "answer": answer})
+        grade = extract_text(response.content).strip().lower()
+        return grade if grade in VALID_GRADES else GRADE_PARTIAL
+    except Exception:
+        logger.exception("Grading call failed; defaulting to partial")
+        return GRADE_PARTIAL
