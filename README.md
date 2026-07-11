@@ -24,11 +24,71 @@ English, Roman Urdu and Urdu script.
 1. Clone the repo
 2. Create a virtual environment and install dependencies
    pip install -r requirements.txt
-3. Add your API keys to a .env file
+3. Copy `.env.example` to `.env` and add your API keys
    GEMINI_API_KEY=your_key
    PINECONE_API_KEY=your_key
 4. Add your PDF documents to the data/ folder
 5. Run ingestion
-   python ingest.py
+   python scripts/ingest.py
 6. Launch the app
    streamlit run app.py
+
+## Expected Inputs
+- Free-text symptom descriptions typed into the chat box, in
+  English, Roman Urdu, or Urdu script (e.g. "high fever",
+  "mujhe bukhaar hai", or "مجھے بخار ہے")
+- Maximum message length: 1000 characters
+- Source PDFs for ingestion: WHO clinical guidelines and Pakistan
+  Ministry of Health / NIH documents, placed in `data/`
+
+## Expected Outputs
+- A triage-guidance answer in the same language as the question,
+  grounded only in the ingested source documents
+- A faithfulness badge (✅ faithful / ⚠️ partial / ❌ low confidence)
+  indicating how well the answer is supported by retrieved context
+- Expandable source citations showing which document chunks were
+  used to generate the answer
+- For high-risk symptoms (e.g. chest pain, severe bleeding,
+  difficulty breathing), an immediate emergency alert directing the
+  user to call Rescue 1122, bypassing the RAG pipeline entirely
+
+## Model Information
+- LLM: Google Gemini 3.1 Flash Lite (generation, translation, and
+  faithfulness grading)
+- Embedding model: BAAI/bge-base-en-v1.5, run locally via
+  Hugging Face, 768-dimensional vectors
+- Vector store: Pinecone (serverless, AWS us-east-1, cosine
+  similarity)
+
+## Project Structure
+```
+medical-triage-assistant/
+├── app.py                  # Streamlit entry point (UI only)
+├── src/
+│   ├── config.py           # Centralized constants and settings
+│   ├── utils.py             # Shared helpers (language detection, etc.)
+│   ├── chains.py           # Translation + answer generation (Gemini)
+│   ├── grader.py            # Faithfulness grading
+│   ├── retriever.py         # Pinecone retriever setup
+│   ├── emergency.py         # Keyword-based emergency detection
+│   └── pipeline.py          # Orchestrates the full request pipeline
+├── scripts/
+│   └── ingest.py            # One-time document ingestion into Pinecone
+├── tests/
+│   ├── test_emergency.py
+│   └── test_utils.py
+├── data/                    # Source PDFs for ingestion
+├── .env.example
+├── requirements.txt
+└── README.md
+```
+
+## Future Improvements
+- Add a minimum similarity-score threshold on retrieval to filter
+  out low-relevance chunks before generation
+- Expand automated test coverage to the retrieval/generation/
+  grading pipeline (currently covered by manual testing plus unit
+  tests on the deterministic emergency-detection and language-
+  detection logic)
+- Move source PDFs out of git history (e.g. Git LFS or a documented
+  external download step) to keep the repository lightweight
