@@ -15,4 +15,8 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install flake8 pytest
       - run: flake8 . --max-line-length=88 --exclude=venv,__pycache__
-      - run: pytest tests/
+      - name: Run tests
+        env:
+          GEMINI_API_KEY: dummy-key-for-ci
+          PINECONE_API_KEY: dummy-key-for-ci
+        run: pytest tests/
