@@ -67,7 +67,8 @@ st.caption(
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-retriever = get_retriever()
+with st.spinner("Loading knowledge base..."):
+    retriever = get_retriever()
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
