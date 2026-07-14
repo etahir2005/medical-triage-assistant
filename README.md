@@ -28,11 +28,47 @@ English, Roman Urdu and Urdu script.
 3. Copy `.env.example` to `.env` and add your API keys
    GEMINI_API_KEY=your_key
    PINECONE_API_KEY=your_key
+   API_ACCESS_KEY=your_key
+   ALLOWED_ORIGINS=http://localhost:8501
+   STREAMLIT_ACCESS_KEY=your_key
 4. Add your PDF documents to the data/ folder
 5. Run ingestion
    python scripts/ingest.py
 6. Launch the app
    streamlit run app.py
+
+## Run with Docker
+
+Build and run each service individually:
+```
+docker build -f docker/api.Dockerfile -t triage-api .
+docker run --env-file .env -p 8000:8000 triage-api
+
+docker build -f docker/streamlit.Dockerfile -t triage-ui .
+docker run --env-file .env -p 8501:8501 triage-ui
+```
+
+Or run both together with Docker Compose:
+```
+docker-compose up --build
+```
+This starts the API on `http://localhost:8000` and the Streamlit UI on
+`http://localhost:8501`, both reading configuration from `.env`.
+
+A few deliberate choices behind these images, worth knowing before
+"fixing" them back to defaults:
+- **CPU-only PyTorch** — installed via `--extra-index-url
+  https://download.pytorch.org/whl/cpu`, since the default GPU build
+  would add several GB to the image for a dependency this app never
+  uses.
+- **Offline-baked embedding model** — `BAAI/bge-base-en-v1.5` is
+  downloaded once at build time, not at container startup, so the
+  containers work with no network access and start faster.
+- **venv over `--user` installs** — dependencies are installed into
+  a virtualenv at `/opt/venv` and copied into the final stage rather
+  than using `pip install --user`, since the non-root `appuser`'s
+  `$HOME` isn't guaranteed to resolve consistently across every
+  runtime context.
 
 ## Expected Inputs
 - Free-text symptom descriptions typed into the chat box, in
@@ -113,11 +149,15 @@ Response:
 }
 ```
 
-If `API_ACCESS_KEY` is set in `.env`, include it as an `X-API-Key`
-header on every request.
+`API_ACCESS_KEY` is required — generate one, set it in `.env`, and
+include it as an `X-API-Key` header on every `/chat` request.
 
 ### GET /health
 Returns `{"status": "ok"}` — used for uptime monitoring.
+
+## Streamlit UI Access
+The UI requires `STREAMLIT_ACCESS_KEY` to be set in `.env`. Visitors
+must enter this value before the chat interface becomes usable.
 
 ## Future Improvements
 - Add a minimum similarity-score threshold on retrieval to filter
