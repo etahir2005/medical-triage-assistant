@@ -17,6 +17,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 API_ACCESS_KEY = os.getenv("API_ACCESS_KEY")
+if not API_ACCESS_KEY:
+    raise EnvironmentError(
+        "API_ACCESS_KEY is not set. This API refuses to start without "
+        "it — running without authentication would let anyone consume "
+        "your Gemini and Pinecone quota. Add it to your .env file."
+    )
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8501").split(",")
 
 app = FastAPI(
     title="Medical Triage Assistant API",
@@ -29,25 +37,22 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
 )
 
 
 def verify_api_key(x_api_key: str = Header(default=None)) -> None:
     """
-    Validate the X-API-Key header against API_ACCESS_KEY, if configured.
+    Validate the X-API-Key header against API_ACCESS_KEY.
 
-    Auth is skipped entirely when API_ACCESS_KEY is not set, so local
-    development works without extra setup.
+    API_ACCESS_KEY is required — the app refuses to start without it
+    (see the check at import time above) — so this always enforces auth.
 
     Raises:
-        HTTPException: 401 if API_ACCESS_KEY is set but the header is
-            missing or incorrect.
+        HTTPException: 401 if the header is missing or incorrect.
     """
-    if API_ACCESS_KEY is None:
-        return
     if x_api_key != API_ACCESS_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

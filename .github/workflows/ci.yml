@@ -19,4 +19,5 @@ jobs:
         env:
           GEMINI_API_KEY: dummy-key-for-ci
           PINECONE_API_KEY: dummy-key-for-ci
+          API_ACCESS_KEY: dummy-key-for-ci
         run: pytest tests/
