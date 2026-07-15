@@ -2,7 +2,9 @@
 
 import logging
 
+from google.genai.errors import APIError
 from langchain_core.messages import AIMessage, HumanMessage
+from pinecone.exceptions import PineconeException
 
 from src.chains import detect_language_and_translate, get_answer
 from src.config import CHAT_HISTORY_LIMIT, LANGUAGE_ENGLISH
@@ -48,12 +50,14 @@ def process_user_message(user_input: str, messages: list, retriever) -> dict:
         "grade" / "sources" when not an emergency.
 
     Raises:
-        Exception: Propagates retrieval, generation, or grading
-            failures to the caller after logging which stage failed.
+        PineconeException: Propagates retrieval failures to the
+            caller after logging which stage failed.
+        APIError: Propagates Gemini generation failures to the
+            caller after logging which stage failed.
     """
     try:
         response_language, english_input = detect_language_and_translate(user_input)
-    except Exception:
+    except APIError:
         logger.warning("Translation failed, using original text", exc_info=True)
         response_language, english_input = LANGUAGE_ENGLISH, user_input
 
@@ -64,7 +68,7 @@ def process_user_message(user_input: str, messages: list, retriever) -> dict:
 
     try:
         retrieved_docs = retriever.invoke(english_input)
-    except Exception:
+    except PineconeException:
         logger.exception("Retrieval failed")
         raise
 
@@ -72,7 +76,7 @@ def process_user_message(user_input: str, messages: list, retriever) -> dict:
         answer, english_answer = get_answer(
             user_input, retrieved_docs, chat_history, response_language
         )
-    except Exception:
+    except APIError:
         logger.exception("Answer generation failed")
         raise
 
