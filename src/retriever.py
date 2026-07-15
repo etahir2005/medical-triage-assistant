@@ -1,8 +1,8 @@
 """Vector store retriever setup for the RAG pipeline."""
 
 import logging
+from functools import lru_cache
 
-import streamlit as st
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
 
@@ -11,13 +11,14 @@ from src.config import EMBEDDING_MODEL_NAME, PINECONE_INDEX_NAME, RETRIEVAL_TOP_
 logger = logging.getLogger(__name__)
 
 
-@st.cache_resource(show_spinner="Loading knowledge base...")
+@lru_cache(maxsize=1)
 def get_retriever():
     """
     Load the embedding model and connect to the existing Pinecone index.
 
-    Cached globally via @st.cache_resource so the embedding model loads
-    once per server process, not once per user session.
+    Cached process-wide via lru_cache so the embedding model loads
+    once per process regardless of entry point (Streamlit UI or
+    FastAPI) or how many times it's called.
 
     Returns:
         A LangChain retriever returning the top-k most similar chunks.

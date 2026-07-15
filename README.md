@@ -18,6 +18,7 @@ English, Roman Urdu and Urdu script.
 - BAAI/bge-base-en-v1.5 — local embedding model
 - Google Gemini 3.1 Flash Lite — LLM for generation and grading
 - Streamlit — chat interface
+- FastAPI — HTTP API
 - Python
 
 ## How to Run
@@ -61,12 +62,13 @@ English, Roman Urdu and Urdu script.
   similarity)
 
 ## Project Structure
-```
 medical-triage-assistant/
 ├── app.py                  # Streamlit entry point (UI only)
+├── api.py                  # FastAPI entry point (HTTP API)
 ├── src/
 │   ├── config.py           # Centralized constants and settings
 │   ├── utils.py             # Shared helpers (language detection, etc.)
+│   ├── schemas.py           # Pydantic request/response models
 │   ├── chains.py           # Translation + answer generation (Gemini)
 │   ├── grader.py            # Faithfulness grading
 │   ├── retriever.py         # Pinecone retriever setup
@@ -76,19 +78,55 @@ medical-triage-assistant/
 │   └── ingest.py            # One-time document ingestion into Pinecone
 ├── tests/
 │   ├── test_emergency.py
-│   └── test_utils.py
+│   ├── test_utils.py
+│   └── test_api.py
 ├── data/                    # Source PDFs for ingestion
 ├── .env.example
 ├── requirements.txt
 └── README.md
+
+## HTTP API
+
+In addition to the Streamlit UI, the project exposes a REST API.
+
+Run it:
+uvicorn api:app --reload --port 8000
+
+Interactive docs: http://localhost:8000/docs
+
+### POST /chat
+Request:
+```json
+{
+  "message": "high fever",
+  "history": []
+}
 ```
+
+Response:
+```json
+{
+  "is_emergency": false,
+  "answer": "...",
+  "grade": "faithful",
+  "sources": [{"content": "...", "source": "who_guideline.pdf"}]
+}
+```
+
+If `API_ACCESS_KEY` is set in `.env`, include it as an `X-API-Key`
+header on every request.
+
+### GET /health
+Returns `{"status": "ok"}` — used for uptime monitoring.
 
 ## Future Improvements
 - Add a minimum similarity-score threshold on retrieval to filter
   out low-relevance chunks before generation
 - Expand automated test coverage to the retrieval/generation/
   grading pipeline (currently covered by manual testing plus unit
-  tests on the deterministic emergency-detection and language-
-  detection logic)
+  tests on the deterministic emergency-detection, language-
+  detection, and API layer logic)
 - Move source PDFs out of git history (e.g. Git LFS or a documented
   external download step) to keep the repository lightweight
+- Add authentication/rate-limiting middleware to the API beyond the
+  optional static API key, if exposed publicly
