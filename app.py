@@ -15,6 +15,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+STREAMLIT_ACCESS_KEY = os.getenv("STREAMLIT_ACCESS_KEY")
+
 
 def render_result(result: dict) -> None:
     """
@@ -63,6 +65,28 @@ st.caption(
     "Bilingual health guidance based on WHO and Pakistan "
     "Ministry of Health guidelines"
 )
+
+if not STREAMLIT_ACCESS_KEY:
+    logger.error("STREAMLIT_ACCESS_KEY is not set — refusing to serve the app.")
+    st.error(
+        "This app is not configured correctly (missing access key) and "
+        "cannot be used right now. Contact the administrator."
+    )
+    st.stop()
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.caption("Enter the access key to continue.")
+    entered_key = st.text_input("Access key", type="password")
+    if st.button("Unlock"):
+        if entered_key == STREAMLIT_ACCESS_KEY:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect access key.")
+    st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []

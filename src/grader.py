@@ -2,6 +2,7 @@
 
 import logging
 
+from google.genai.errors import APIError
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -69,6 +70,6 @@ def grade_answer(answer: str, context: str) -> str:
         response = chain.invoke({"context": context, "answer": answer})
         grade = extract_text(response.content).strip().lower()
         return grade if grade in VALID_GRADES else GRADE_PARTIAL
-    except Exception:
+    except APIError:
         logger.exception("Grading call failed; defaulting to partial")
         return GRADE_PARTIAL
