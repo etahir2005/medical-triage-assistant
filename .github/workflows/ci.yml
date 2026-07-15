@@ -72,9 +72,14 @@ jobs:
             -e GEMINI_API_KEY=dummy -e PINECONE_API_KEY=dummy \
             -e API_ACCESS_KEY=dummy-key-for-ci \
             triage-api:${{ github.sha }}
-          sleep 5
-          curl --fail http://localhost:8000/health
-          status=$?
+          status=1
+          for i in $(seq 1 24); do
+            if curl --fail -s http://localhost:8000/health > /dev/null; then
+              status=0
+              break
+            fi
+            sleep 5
+          done
           echo "--- api-test container logs ---"
           docker logs api-test
           docker rm -f api-test
@@ -87,9 +92,14 @@ jobs:
             -e GEMINI_API_KEY=dummy -e PINECONE_API_KEY=dummy \
             -e STREAMLIT_ACCESS_KEY=dummy-key-for-ci \
             triage-ui:${{ github.sha }}
-          sleep 10
-          curl --fail http://localhost:8501/_stcore/health
-          status=$?
+          status=1
+          for i in $(seq 1 24); do
+            if curl --fail -s http://localhost:8501/_stcore/health > /dev/null; then
+              status=0
+              break
+            fi
+            sleep 5
+          done
           echo "--- ui-test container logs ---"
           docker logs ui-test
           docker rm -f ui-test
