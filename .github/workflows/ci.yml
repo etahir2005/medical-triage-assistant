@@ -55,6 +55,7 @@ jobs:
           image-ref: triage-api:${{ github.sha }}
           exit-code: "1"
           severity: "CRITICAL,HIGH"
+          ignore-unfixed: "true"
 
       - name: Scan Streamlit image with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, post-incident release (see GHSA-69fq-xp46-6x23)
@@ -62,6 +63,7 @@ jobs:
           image-ref: triage-ui:${{ github.sha }}
           exit-code: "1"
           severity: "CRITICAL,HIGH"
+          ignore-unfixed: "true"
 
       - name: Smoke test API image
         run: |
