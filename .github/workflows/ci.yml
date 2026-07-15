@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [development, main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - run: pip install flake8 pytest
+      - run: flake8 . --max-line-length=88 --exclude=venv,__pycache__
+      - name: Run tests
+        env:
+          GEMINI_API_KEY: dummy-key-for-ci
+          PINECONE_API_KEY: dummy-key-for-ci
+          API_ACCESS_KEY: dummy-key-for-ci
+        run: pytest tests/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint API Dockerfile with hadolint
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: docker/api.Dockerfile
+          ignore: DL3008
+
+      - name: Lint Streamlit Dockerfile with hadolint
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: docker/streamlit.Dockerfile
+          ignore: DL3008
+
+      - name: Build API image
+        run: docker build -f docker/api.Dockerfile -t triage-api:${{ github.sha }} .
+
+      - name: Build Streamlit image
+        run: docker build -f docker/streamlit.Dockerfile -t triage-ui:${{ github.sha }} .
+
+      - name: Scan API image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, post-incident release (see GHSA-69fq-xp46-6x23)
+        with:
+          image-ref: triage-api:${{ github.sha }}
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: "true"
+
+      - name: Scan Streamlit image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, post-incident release (see GHSA-69fq-xp46-6x23)
+        with:
+          image-ref: triage-ui:${{ github.sha }}
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: "true"
+
+      - name: Smoke test API image
+        run: |
+          set +e
+          docker run -d --name api-test -p 8000:8000 \
+            -e GEMINI_API_KEY=dummy -e PINECONE_API_KEY=dummy \
+            -e API_ACCESS_KEY=dummy-key-for-ci \
+            triage-api:${{ github.sha }}
+          status=1
+          for i in $(seq 1 24); do
+            if curl --fail -s http://localhost:8000/health > /dev/null; then
+              status=0
+              break
+            fi
+            sleep 5
+          done
+          echo "--- api-test container logs ---"
+          docker logs api-test
+          docker rm -f api-test
+          exit $status
+
+      - name: Smoke test Streamlit image
+        run: |
+          set +e
+          docker run -d --name ui-test -p 8501:8501 \
+            -e GEMINI_API_KEY=dummy -e PINECONE_API_KEY=dummy \
+            -e STREAMLIT_ACCESS_KEY=dummy-key-for-ci \
+            triage-ui:${{ github.sha }}
+          status=1
+          for i in $(seq 1 24); do
+            if curl --fail -s http://localhost:8501/_stcore/health > /dev/null; then
+              status=0
+              break
+            fi
+            sleep 5
+          done
+          echo "--- ui-test container logs ---"
+          docker logs ui-test
+          docker rm -f ui-test
+          exit $status
