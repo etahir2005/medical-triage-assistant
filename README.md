@@ -40,18 +40,13 @@ English, Roman Urdu and Urdu script.
 ## Run with Docker
 
 Build and run each service individually:
-```
 docker build -f docker/api.Dockerfile -t triage-api .
 docker run --env-file .env -p 8000:8000 triage-api
-
 docker build -f docker/streamlit.Dockerfile -t triage-ui .
 docker run --env-file .env -p 8501:8501 triage-ui
-```
 
 Or run both together with Docker Compose:
-```
 docker-compose up --build
-```
 This starts the API on `http://localhost:8000` and the Streamlit UI on
 `http://localhost:8501`, both reading configuration from `.env`.
 
