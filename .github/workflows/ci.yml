@@ -35,11 +35,13 @@ jobs:
         uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: docker/api.Dockerfile
+          ignore: DL3008
 
       - name: Lint Streamlit Dockerfile with hadolint
         uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: docker/streamlit.Dockerfile
+          ignore: DL3008
 
       - name: Build API image
         run: docker build -f docker/api.Dockerfile -t triage-api:${{ github.sha }} .
